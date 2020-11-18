@@ -1,2 +1,7 @@
 ddb.db
 ddbbolt
+/bin
+/.go
+/.container-*
+/.dockerfile-*
+/vendor
