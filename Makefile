@@ -35,8 +35,8 @@ ALL_PLATFORMS := linux/amd64 linux/arm linux/arm64 linux/ppc64le linux/s390x
 
 # Used internally.  Users should pass GOOS and/or GOARCH.
 # hacked this to at least guess if go isn't installed on the host
-OS := $(if $(GOOS),$(GOOS),$(shell go env GOOS || uname -s | tr '[:upper:]' '[:lower:]'))
-ARCH := $(if $(GOARCH),$(GOARCH),$(shell go env GOARCH || echo 'amd64'))
+OS := $(if $(GOOS),$(GOOS),$(shell go env GOOS 2>/dev/null || uname -s | tr '[:upper:]' '[:lower:]'))
+ARCH := $(if $(GOARCH),$(GOARCH),$(shell go env GOARCH 2>/dev/null || echo 'amd64'))
 
 BASEIMAGE ?= scratch # gcr.io/distroless/static
 
