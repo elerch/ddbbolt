@@ -269,6 +269,3 @@ help:
 	        BEGIN {FS = ": *# *@HELP"};           \
 	        { printf "  %-30s %s\n", $$1, $$2 };  \
 	    '
-
-#!/bin/sh
-# CGO_ENABLED=0 go build -ldflags="-s -w"
