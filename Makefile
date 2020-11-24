@@ -209,14 +209,16 @@ push: $(CONTAINER_DOTFILES)
 
 # TODO: Upstream was using manifest-tool and gcloud commands. Needs update
 manifest-list: # @HELP builds a manifest list of containers for all platforms
-manifest-list: all-push
-	@for bin in $(BINS); do                                   \
-	    platforms=$$(echo $(ALL_PLATFORMS) | sed 's/ /,/g');  \
-	    manifest-tool                                         \
-	        push from-args                                    \
-	        --platforms "$$platforms"                         \
-	        --template $(REGISTRY)/$$bin:$(VERSION)__OS_ARCH  \
-	        --target $(REGISTRY)/$$bin:$(VERSION);            \
+manifest-list: all-container
+	@for bin in $(BINS); do                                                  \
+		docker manifest create $(REGISTRY)/$$bin:$(VERSION);                   \
+		for platform in $(ALL_PLATFORMS); do                                   \
+			docker manifest add --arch $$(echo $$platform | cut -d/ -f2)         \
+				$(REGISTRY)/$$bin:$(VERSION)                                       \
+				$(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g'); \
+		done;                                                                  \
+		docker manifest push --all $(REGISTRY)/$$bin:$(VERSION)                \
+										docker://$(REGISTRY)/$$bin:$(VERSION);                 \
 	done
 
 version: # @HELP outputs the version string
