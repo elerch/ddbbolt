@@ -24,9 +24,16 @@ VERSION ?= $(shell git describe --tags --always --dirty)
 # This version-strategy uses a manual value to set the version string
 #VERSION ?= 1.2.3
 
+# Podman rootless needs 777. Otherwise should be 755
+BINDIRMODE ?= 777
 ###
 ### These variables should not need tweaking.
 ###
+
+# So /bin/sh/ sources file at $ENV
+SHELL := sh
+.SHELLFLAGS := -ic
+
 
 SRC_DIRS := cmd pkg # directories which hold app source (not vendored)
 
@@ -125,6 +132,8 @@ $(STAMPS): go-build
 go-build: $(BUILD_DIRS)
 	@echo
 	@echo "building for $(OS)/$(ARCH)"
+	@mkdir -p "$$(pwd)/.go/bin/$(OS)_$(ARCH)"
+	@chmod $(BINDIRMODE) "$$(pwd)/.go/bin/$(OS)_$(ARCH)"
 	@docker run                                                 \
 	    -i                                                      \
 	    --rm                                                    \
