@@ -242,7 +242,15 @@ clean: # @HELP removes built binaries and temporary files
 clean: container-clean bin-clean
 
 container-clean:
-	rm -rf .container-* .dockerfile-*
+	@rm -rf .container-* .dockerfile-*;                                                             \
+	for bin in $(BINS); do                                                                          \
+		docker image exists "$(REGISTRY)/$$bin:$(VERSION)" &&                                         \
+		docker image rm "$(REGISTRY)/$$bin:$(VERSION)";                                               \
+		for platform in $(ALL_PLATFORMS); do                                                          \
+			docker image exists "$(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g')" &&  \
+			docker image rm "$(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g')";        \
+		done                                                                                          \
+	done; true
 
 bin-clean:
 	rm -rf .go bin
