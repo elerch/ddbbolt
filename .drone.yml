@@ -4,7 +4,7 @@ name: default
 
 steps:
 - name: make
-  image: docker:dind
+  image: debian:buster-slim
   environment:
     USERNAME:
       from_secret: docker_username
@@ -12,11 +12,17 @@ steps:
       from_secret: docker_password
     REGISTRY:
       from_secret: docker_registry
+    DOCKERVERSION: "19.03.9"
   volumes:
   - name: dockersock
     path: /var/run
   commands:
+  - apt-get update && apt install -y --no-install-recommends curl make ca-certificates git
+  - curl -fsSLO https://download.docker.com/linux/static/stable/x86_64/docker-$${DOCKERVERSION}.tgz
+  - tar xzvf docker-$${DOCKERVERSION}.tgz --strip 1 -C /usr/local/bin docker/docker
+  - rm docker-$${DOCKERVERSION}.tgz
   - sleep 5 # give docker enough time to start
+  - echo login $REGISTRY
   - docker login -u $USERNAME -p $PASSWORD $REGISTRY
   - make manifest-list
 - name: notify

@@ -51,7 +51,7 @@ BASEIMAGE ?= scratch # gcr.io/distroless/static
 
 TAG := $(VERSION)__$(OS)_$(ARCH)
 
-BUILD_IMAGE ?= golang:1.14-alpine
+BUILD_IMAGE ?= golang:1.15.5-alpine
 
 BIN_EXTENSION :=
 ifeq ($(OS), windows)
@@ -137,7 +137,6 @@ go-build: $(BUILD_DIRS)
 	@mkdir -p "$$(pwd)/.go/bin/$(OS)_$(ARCH)"
 	@chmod $(BINDIRMODE) "$$(pwd)/.go/bin/$(OS)_$(ARCH)"
 	@docker run                                                 \
-	    -i                                                      \
 	    --rm                                                    \
 	    -u $$(id -u):$$(id -g)                                  \
 	    -v $$(pwd):/src                                         \
@@ -212,7 +211,8 @@ push: $(CONTAINER_DOTFILES)
 # TODO: Upstream was using manifest-tool and gcloud commands. Needs update
 manifest-list: # @HELP builds a manifest list of containers for all platforms
 manifest-list: all-container
-	@for bin in $(BINS); do                                                  \
+	@export DOCKER_CLI_EXPERIMENTAL=enabled  &&                              \
+	for bin in $(BINS); do                                                   \
 		docker manifest create $(REGISTRY)/$$bin:$(VERSION);                   \
 		for platform in $(ALL_PLATFORMS); do                                   \
 			docker manifest add --arch $$(echo $$platform | cut -d/ -f2)         \
