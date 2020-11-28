@@ -38,7 +38,9 @@ SHELL := sh
 SRC_DIRS := cmd pkg # directories which hold app source (not vendored)
 
 # Windows not working atm
-ALL_PLATFORMS := linux/amd64 linux/arm linux/arm64 linux/ppc64le linux/s390x
+#ALL_PLATFORMS := linux/amd64 linux/arm linux/arm64 linux/ppc64le linux/s390x
+# Unlikely I'll run on ppc or s390x anytime soon
+ALL_PLATFORMS := linux/amd64 linux/arm linux/arm64
 
 # Used internally.  Users should pass GOOS and/or GOARCH.
 # hacked this to at least guess if go isn't installed on the host
