@@ -30,9 +30,7 @@ BINDIRMODE ?= 777
 ### These variables should not need tweaking.
 ###
 
-# So /bin/sh/ sources file at $ENV
-SHELL := sh
-.SHELLFLAGS := -ic
+DKR := $(shell if command -v docker > /dev/null 2>&1; then echo "docker"; else echo "podman"; fi)
 
 
 SRC_DIRS := cmd pkg # directories which hold app source (not vendored)
@@ -136,7 +134,7 @@ go-build: $(BUILD_DIRS)
 	@echo "building for $(OS)/$(ARCH)"
 	@mkdir -p "$$(pwd)/.go/bin/$(OS)_$(ARCH)"
 	@chmod $(BINDIRMODE) "$$(pwd)/.go/bin/$(OS)_$(ARCH)"
-	@docker run                                                 \
+	@$(DKR) run                                                 \
 	    --rm                                                    \
 	    -u $$(id -u):$$(id -g)                                  \
 	    -v $$(pwd):/src                                         \
@@ -159,7 +157,7 @@ go-build: $(BUILD_DIRS)
 shell: # @HELP launches a shell in the containerized build environment
 shell: $(BUILD_DIRS)
 	@echo "launching a shell in the containerized build environment"
-	@docker run                                                 \
+	@$(DKR) run                                                 \
 	    -ti                                                     \
 	    --rm                                                    \
 	    -u $$(id -u):$$(id -g)                                  \
@@ -198,30 +196,50 @@ $(CONTAINER_DOTFILES):
 	    -e 's|{ARG_OS}|$(OS)|g'          \
 	    -e 's|{ARG_FROM}|$(BASEIMAGE)|g' \
 	    Dockerfile.in > .dockerfile-$(BIN)-$(OS)_$(ARCH)
-	@docker build -t $(REGISTRY)/$(BIN):$(TAG) -f .dockerfile-$(BIN)-$(OS)_$(ARCH) .
-	@docker images -q $(REGISTRY)/$(BIN):$(TAG) > $@
+	@$(DKR) build -t $(REGISTRY)/$(BIN):$(TAG) -f .dockerfile-$(BIN)-$(OS)_$(ARCH) .
+	@$(DKR) images -q $(REGISTRY)/$(BIN):$(TAG) > $@
 	@echo
 
 push: # @HELP pushes the container for one platform ($OS/$ARCH) to the defined registry
 push: $(CONTAINER_DOTFILES)
 	@for bin in $(BINS); do                    \
-	    docker push $(REGISTRY)/$$bin:$(TAG);  \
+	    $(DKR) push $(REGISTRY)/$$bin:$(TAG);  \
 	done
 
-# TODO: Upstream was using manifest-tool and gcloud commands. Needs update
+# TODO: podman and docker are pretty different wrt manifests and workflow here
+#       docker is experimental CLI and requires pushed images (which then should probably
+#       be untagged on the server), podman can push everything at once when the manifest
+#       is cleaned
 manifest-list: # @HELP builds a manifest list of containers for all platforms
 manifest-list: all-container
-	@export DOCKER_CLI_EXPERIMENTAL=enabled  &&                              \
-	for bin in $(BINS); do                                                   \
-		docker manifest create $(REGISTRY)/$$bin:$(VERSION);                   \
-		for platform in $(ALL_PLATFORMS); do                                   \
-			docker manifest add --arch $$(echo $$platform | cut -d/ -f2)         \
-				$(REGISTRY)/$$bin:$(VERSION)                                       \
-				$(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g'); \
-		done;                                                                  \
-		docker manifest push --all $(REGISTRY)/$$bin:$(VERSION)                \
-										docker://$(REGISTRY)/$$bin:$(VERSION);                 \
-	done
+	@export DOCKER_CLI_EXPERIMENTAL=enabled  &&                                          \
+	if $(DKR) --version | grep -q podman; then                                           \
+		for bin in $(BINS); do                                                             \
+			$(DKR) manifest create $(REGISTRY)/$$bin:$(VERSION);                             \
+			for platform in $(ALL_PLATFORMS); do                                             \
+				$(DKR) manifest add --arch $$(echo $$platform | cut -d/ -f2)                   \
+					$(REGISTRY)/$$bin:$(VERSION)                                                 \
+					$(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g');           \
+			done;                                                                            \
+			$(DKR) manifest push --all $(REGISTRY)/$$bin:$(VERSION)                          \
+											docker://$(REGISTRY)/$$bin:$(VERSION);                           \
+		done;                                                                              \
+	else                                                                                 \
+		for bin in $(BINS); do                                                             \
+			cmd="$(DKR) manifest create $(REGISTRY)/$$bin:$(VERSION)";                       \
+			for platform in $(ALL_PLATFORMS); do                                             \
+			  cmd="$$cmd $(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g')"; \
+				$(DKR) push $(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g'); \
+			done;                                                                            \
+			eval "$$cmd";                                                                    \
+			for platform in $(ALL_PLATFORMS); do                                             \
+				$(DKR) manifest annotate --arch $$(echo $$platform | cut -d/ -f2)              \
+					$(REGISTRY)/$$bin:$(VERSION)                                                 \
+					$(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g');           \
+			done;                                                                            \
+			$(DKR) manifest push $(REGISTRY)/$$bin:$(VERSION);                               \
+		done;                                                                              \
+	fi
 
 version: # @HELP outputs the version string
 version:
@@ -229,7 +247,7 @@ version:
 
 test: # @HELP runs tests, as defined in ./build/test.sh
 test: $(BUILD_DIRS)
-	@docker run                                                 \
+	@$(DKR) run                                                 \
 	    -i                                                      \
 	    --rm                                                    \
 	    -u $$(id -u):$$(id -g)                                  \
@@ -255,14 +273,25 @@ clean: # @HELP removes built binaries and temporary files
 clean: container-clean bin-clean
 
 container-clean:
-	@rm -rf .container-* .dockerfile-*;                                                             \
-	for bin in $(BINS); do                                                                          \
-		docker image exists "$(REGISTRY)/$$bin:$(VERSION)" &&                                         \
-		docker image rm "$(REGISTRY)/$$bin:$(VERSION)";                                               \
-		for platform in $(ALL_PLATFORMS); do                                                          \
-			docker image exists "$(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g')" &&  \
-			docker image rm "$(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g')";        \
-		done                                                                                          \
+	@rm -rf .container-* .dockerfile-*;                                             \
+	for bin in $(BINS); do                                                          \
+		if $(DKR) --version |grep -q podman; then                                     \
+			$(DKR) image exists "$(REGISTRY)/$$bin:$(VERSION)" &&                       \
+			$(DKR) image rm "$(REGISTRY)/$$bin:$(VERSION)";                             \
+		else                                                                          \
+			$(DKR) image rm "$(REGISTRY)/$$bin:$(VERSION)";                             \
+		fi;                                                                           \
+		for platform in $(ALL_PLATFORMS); do                                          \
+			if $(DKR) --version |grep -q podman; then                                   \
+				$(DKR) image exists                                                       \
+				  "$(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g')" &&  \
+				$(DKR) image rm                                                           \
+				  "$(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g')";    \
+			else                                                                        \
+				$(DKR) image rm                                                           \
+				  "$(REGISTRY)/$$bin:$(VERSION)__$$(echo $$platform | sed 's#/#_#g')";    \
+			fi;                                                                         \
+		done;                                                                         \
 	done; true
 
 bin-clean:
