@@ -4,4 +4,3 @@ ddbbolt
 /.go
 /.container-*
 /.dockerfile-*
-/vendor
