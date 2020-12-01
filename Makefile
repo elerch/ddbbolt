@@ -32,6 +32,9 @@ BINDIRMODE ?= 777
 
 DKR := $(shell if command -v docker > /dev/null 2>&1; then echo "docker"; else echo "podman"; fi)
 
+# Rootless podman, "root" in the shell will be the uid of the user
+UID ?= $(shell if [ "$(DKR)" = "podman" ]; then echo 0; else id -u; fi)
+GID ?= $(shell if [ "$(DKR)" = "podman" ]; then echo 0; else id -g; fi)
 
 SRC_DIRS := cmd pkg # directories which hold app source (not vendored)
 
@@ -136,7 +139,7 @@ go-build: $(BUILD_DIRS)
 	@chmod $(BINDIRMODE) "$$(pwd)/.go/bin/$(OS)_$(ARCH)"
 	@$(DKR) run                                                 \
 	    --rm                                                    \
-	    -u $$(id -u):$$(id -g)                                  \
+	    -u $(UID):$(GID)                                        \
 	    -v $$(pwd):/src                                         \
 	    -w /src                                                 \
 	    -v $$(pwd)/.go/bin/$(OS)_$(ARCH):/go/bin                \
@@ -160,12 +163,13 @@ shell: $(BUILD_DIRS)
 	@$(DKR) run                                                 \
 	    -ti                                                     \
 	    --rm                                                    \
-	    -u $$(id -u):$$(id -g)                                  \
+	    -u $(UID):$(GID)                                        \
 	    -v $$(pwd):/src                                         \
 	    -w /src                                                 \
 	    -v $$(pwd)/.go/bin/$(OS)_$(ARCH):/go/bin                \
 	    -v $$(pwd)/.go/bin/$(OS)_$(ARCH):/go/bin/$(OS)_$(ARCH)  \
 	    -v $$(pwd)/.go/cache:/.cache                            \
+	    --env HOME=/                                            \
 	    --env HTTP_PROXY=$(HTTP_PROXY)                          \
 	    --env HTTPS_PROXY=$(HTTPS_PROXY)                        \
 	    $(BUILD_IMAGE)                                          \
