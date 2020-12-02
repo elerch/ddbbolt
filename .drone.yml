@@ -4,7 +4,7 @@ name: default
 
 steps:
 - name: make
-  image: debian:buster-slim
+  image: alpine
   environment:
     USERNAME:
       from_secret: docker_username
@@ -12,16 +12,15 @@ steps:
       from_secret: docker_password
     REGISTRY:
       from_secret: docker_registry
-    DOCKERVERSION: "19.03.9"
+    DOCKER_CLI_LOCATION:
+      from_secret: docker-cli-location
   volumes:
   - name: dockersock
     path: /var/run
   commands:
-  - apt-get update && apt install -y --no-install-recommends curl make ca-certificates git
-  - curl -fsSLO https://download.docker.com/linux/static/stable/x86_64/docker-$${DOCKERVERSION}.tgz
-  - tar xzvf docker-$${DOCKERVERSION}.tgz --strip 1 -C /usr/local/bin docker/docker
-  - rm docker-$${DOCKERVERSION}.tgz
-  - sleep 5 # give docker enough time to start
+  - apk add make git
+  - 'export PATH="$${DOCKER_CLI_LOCATION}":"$${PATH}"'
+  - 'while [ "$(docker info >/dev/null 2>&1; echo $?)" -ne 0 ]; do sleep 1; done'
   - echo login $REGISTRY
   - docker login -u $USERNAME -p $PASSWORD $REGISTRY
   - make manifest-list
