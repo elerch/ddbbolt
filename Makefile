@@ -127,7 +127,7 @@ STAMPS = $(foreach outbin,$(OUTBINS),.go/$(outbin).stamp)
 $(STAMPS): go-build
 	@echo "binary: $(OUTBIN)"
 	@if ! cmp -s .go/$(OUTBIN) $(OUTBIN); then  \
-	    mv .go/$(OUTBIN) $(OUTBIN);             \
+	    mv -f .go/$(OUTBIN) $(OUTBIN);          \
 	    date >$@;                               \
 	fi
 
