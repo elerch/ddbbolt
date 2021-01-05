@@ -12,14 +12,11 @@ steps:
       from_secret: docker_password
     REGISTRY:
       from_secret: docker_registry
-    DOCKER_CLI_LOCATION:
-      from_secret: docker-cli-location
   volumes:
   - name: dockersock
     path: /var/run
   commands:
   - apk add make git
-  - 'export PATH="$${DOCKER_CLI_LOCATION}":"$${PATH}"'
   - 'while [ "$(docker info >/dev/null 2>&1; echo $?)" -ne 0 ]; do sleep 1; done'
   - echo login $REGISTRY
   - docker login -u $USERNAME -p $PASSWORD $REGISTRY
