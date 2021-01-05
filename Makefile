@@ -254,7 +254,7 @@ test: $(BUILD_DIRS)
 	@$(DKR) run                                                 \
 	    -i                                                      \
 	    --rm                                                    \
-	    -u $$(id -u):$$(id -g)                                  \
+	    -u $(UID):$(GID)                                        \
 	    -v $$(pwd):/src                                         \
 	    -w /src                                                 \
 	    -v $$(pwd)/.go/bin/$(OS)_$(ARCH):/go/bin                \
